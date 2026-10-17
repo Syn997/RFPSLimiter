@@ -13,7 +13,9 @@
 *.log
 *.ipch
 DocumentLayout.json
-DocumentLayout.backup.json
+*.json
+.vs
+
 
 # Build directories
 build/
@@ -24,6 +26,7 @@ cmake-build-*/
 *.ilk
 *.dSYM/
 Debug/
+*.vs/
 
 # IDE settings
 .vscode/
@@ -34,3 +37,6 @@ Debug/
 # OS files
 .DS_Store
 Thumbs.db
+.vs/RFPSLimiter.slnx/v18/Browse.VC.db
+.vs/RFPSLimiter.slnx/FileContentIndex/29c81830-b7f6-4a58-8274-cc980e3b955c.vsidx
+/.vs/RFPSLimiter.slnx
