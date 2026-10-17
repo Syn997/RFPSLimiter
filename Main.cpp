@@ -22,8 +22,113 @@ NOTIFYICONDATAW nid = {};
 
 //handle rtss-cli   
 
+std::filesystem::path GetRtssCliPath()
+{
+    wchar_t path[MAX_PATH]{};
+    GetModuleFileNameW(nullptr, path, MAX_PATH);
 
+    return std::filesystem::path(path).parent_path()
+        / L"tools" / L"rtss-cli.exe";
+}
 
+bool RunRtssCli(const std::vector<std::wstring>& args,
+    std::wstring& output)
+{
+    const auto exe = GetRtssCliPath();
+
+    if (!std::filesystem::exists(exe))
+        return false;
+
+    std::wstring command = L"\"" + exe.wstring() + L"\"";
+
+    for (const auto& arg : args)
+        command += L" \"" + arg + L"\"";
+
+    std::vector<wchar_t> buffer(command.begin(), command.end());
+    buffer.push_back(L'\0');
+
+    SECURITY_ATTRIBUTES sa{ sizeof(sa), nullptr, TRUE };
+    HANDLE readPipe{}, writePipe{};
+
+    if (!CreatePipe(&readPipe, &writePipe, &sa, 0))
+        return false;
+
+    SetHandleInformation(readPipe, HANDLE_FLAG_INHERIT, 0);
+
+    STARTUPINFOW si{};
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_HIDE;
+    si.hStdOutput = writePipe;
+    si.hStdError = writePipe;
+    si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+
+    PROCESS_INFORMATION pi{};
+
+    BOOL ok = CreateProcessW(
+        exe.c_str(), buffer.data(),
+        nullptr, nullptr, TRUE, CREATE_NO_WINDOW,
+        nullptr, exe.parent_path().c_str(), &si, &pi);
+
+    CloseHandle(writePipe);
+
+    if (!ok)
+    {
+        CloseHandle(readPipe);
+        return false;
+    }
+
+    output.clear();
+    char chunk[1024];
+    DWORD bytes{};
+
+    while (ReadFile(readPipe, chunk, sizeof(chunk), &bytes, nullptr)
+        && bytes > 0)
+    {
+        for (DWORD i = 0; i < bytes; ++i)
+            output += static_cast<unsigned char>(chunk[i]);
+    }
+
+    CloseHandle(readPipe);
+    WaitForSingleObject(pi.hProcess, INFINITE);
+
+    DWORD exitCode{};
+    GetExitCodeProcess(pi.hProcess, &exitCode);
+
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+
+    return exitCode == 0;
+}
+
+bool SetFpsLimiter(bool enabled)
+{
+    std::wstring output;
+    return RunRtssCli(
+        { L"limiter:set", enabled ? L"1" : L"0" }, output);
+}
+
+bool GetFpsLimiter(bool& enabled)
+{
+    std::wstring output;
+
+    if (!RunRtssCli({ L"limiter:get" }, output))
+        return false;
+
+    while (!output.empty() &&
+        (output.back() == L'\r' || output.back() == L'\n' ||
+            output.back() == L' ' || output.back() == L'\t'))
+        output.pop_back();
+
+    if (output == L"1")
+        enabled = true;
+    else if (output == L"0")
+        enabled = false;
+    else
+        return false;
+
+    return true;
+}
 
 
 LRESULT CALLBACK WndProc(
@@ -83,18 +188,15 @@ LRESULT CALLBACK WndProc(
         switch (wParam)
         {
         case ID_HOTKEY_F1:
-            MessageBoxW(
-                nullptr, L"HELLO",
-                L"My Tray App", MB_OK);
+            SetFpsLimiter(true);
             break;
 
         case ID_HOTKEY_F2:
-            MessageBoxW(
-                nullptr, L"GOOD BYE",
-                L"My Tray App", MB_OK);
+            SetFpsLimiter(false);
             break;
 
         case ID_HOTKEY_F3:
+            SetFpsLimiter(false);
             DestroyWindow(hwnd);
             break;
         }
@@ -106,6 +208,7 @@ LRESULT CALLBACK WndProc(
     case WM_COMMAND:
         if (LOWORD(wParam) == ID_TRAY_EXIT)
         {
+            SetFpsLimiter(false);
             DestroyWindow(hwnd);
         }
         return 0;
@@ -113,6 +216,7 @@ LRESULT CALLBACK WndProc(
 
     case WM_DESTROY:
         Shell_NotifyIconW(NIM_DELETE, &nid);
+        SetFpsLimiter(false);
         PostQuitMessage(0);
         return 0;
     }
