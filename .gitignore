@@ -9,6 +9,11 @@
 *.dylib
 *.a
 *.lib
+*.tlog
+*.log
+*.ipch
+DocumentLayout.json
+DocumentLayout.backup.json
 
 # Build directories
 build/
@@ -18,6 +23,7 @@ cmake-build-*/
 *.pdb
 *.ilk
 *.dSYM/
+Debug/
 
 # IDE settings
 .vscode/
