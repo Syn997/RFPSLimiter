@@ -3,5 +3,5 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Project Path="RFPSLimiter/RFPSLimiter.vcxproj" />
+  <Project Path="RFPSLimiter.vcxproj" Id="4200f6b0-83f3-4de8-a73e-42ae72930923" />
 </Solution>
